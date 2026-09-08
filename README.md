@@ -80,7 +80,7 @@ The robber starts on a desert where present (the depicted middle desert in Throu
 Two diagram details need interpretation:
 
 1. New Shores for 5–6 players leaves the main island blank and refers to the base extension setup. With recommended tiles on, Fair Shores fills it with that extension’s beginner layout, rotated to fit the diagram.
-2. Through the Desert for 5–6 players lists **11 harbors** but draws **10 harbor locations**. Recommended harbor placement preserves all 10 depicted edges and adds the remaining harbor to a legal main-island coast. The app surfaces this choice in its setup notes.
+2. Through the Desert for 5–6 players lists **11 harbors** but draws **10 harbor locations**. Recommended harbor placement preserves all 10 depicted edges and adds the remaining harbor to a legal main-island coast. The app surfaces this choice in its setup notes. 
 
 Balanced random setups are optional variants; the normal base game uses the lettered spiral token procedure. The chart is an estimate of resource production probabilities, not expected cards per turn: it does not model settlement ownership, cities, or the robber.
 
