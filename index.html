@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#163d42">
+  <meta name="description" content="A fairer starting point for game night. Balanced Catan and Seafarers boards for 3–6 players, with exact component inventories and shareable seeds.">
+  <title>Fair Shores · Catan map generator</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%23163d42' d='M32 2 59 17v30L32 62 5 47V17z'/%3E%3Cpath fill='%23eedca7' d='m16 42 16-27 16 27z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/src/style.css"><script type="module" src="/src/app.js"></script>
+</head>
+<body>
+  <header class="site-header"><a href="/" class="brand"><span class="brand-mark" aria-hidden="true">⌁</span> Fair Shores<span class="brand-caption">A CATAN MAP GENERATOR</span></a><button class="text-button" id="about-button">The idea behind the map <span aria-hidden="true">↗</span></button></header>
+  <main>
+    <div class="intro"><div><p class="eyebrow">LESS LUCK IN THE SETUP. MORE GAME IN THE NIGHT.</p><h1>A fairer starting point.</h1><p>Fresh islands. Balanced resources. Let the trading do the rest.</p></div><span class="edition">BASE CATAN + SEAFARERS<br><b>Made for your game night.</b></span></div>
+    <div class="workspace">
+      <aside class="settings panel" aria-label="Map settings">
+        <div class="panel-heading"><h2>Your next adventure</h2><span class="step">01 / SETUP</span></div>
+        <form id="settings-form">
+          <label class="field-label" for="family">Game & scenario</label>
+          <select id="family"><option value="base">Base Catan</option><optgroup label="Seafarers"><option value="shores">Heading for New Shores</option><option value="islands">Four / Six Islands</option><option value="desert">Through the Desert</option></optgroup></select>
+          <fieldset class="player-field"><legend>Players</legend><div class="segmented" id="players"><label><input type="radio" name="players" value="3"><span>3</span></label><label><input type="radio" name="players" value="4" checked><span>4</span></label><label><input type="radio" name="players" value="6"><span>5–6</span></label></div></fieldset>
+          <div class="section-label">A LITTLE MORE EVEN</div>
+          <label class="field-label" for="balance">Resource balance</label>
+          <select id="balance"><option value="total">Even total pips</option><option value="perTile">Even pips per tile</option><option value="off">Off / random resource totals</option></select>
+          <p class="field-help" id="balance-help">Aim for similar total production across all five resources.</p>
+          <label class="toggle-row start-toggle"><span>Balance starting locations</span><input id="balanceStarts" type="checkbox" checked role="switch"><span class="switch" aria-hidden="true"></span></label>
+          <div class="section-label">PLACEMENT PREFERENCES</div>
+          <label class="toggle-row"><span>No adjacent harbors</span><input id="noAdjacentHarbors" type="checkbox" checked role="switch"><span class="switch" aria-hidden="true"></span></label>
+          <label class="toggle-row"><span>No adjacent red tokens</span><input id="noAdjacentRed" type="checkbox" checked role="switch"><span class="switch" aria-hidden="true"></span></label>
+          <label class="toggle-row"><span>No adjacent resources</span><input id="noAdjacentResources" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span></label>
+          <label class="toggle-row"><span>Recommended harbors</span><input id="recommendedHarbors" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span></label>
+          <label class="toggle-row"><span>Recommended tiles</span><input id="recommendedTiles" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span></label>
+          <p id="settings-note" class="notice" hidden></p>
+          <div class="seed-field"><label class="field-label" for="seed">Map seed <span>KEEP A GOOD ONE</span></label><div class="seed-input"><input id="seed" maxlength="64" spellcheck="false" autocomplete="off" aria-label="Map seed"><button type="button" id="new-seed" title="Choose a new random seed" aria-label="Choose a new random seed">⤨</button></div></div>
+          <button class="primary" id="generate" type="submit"><span aria-hidden="true">⤨</span> Generate map <span aria-hidden="true">→</span></button>
+          <button class="text-button reset" type="button" id="reset">Reset preferences</button>
+        </form>
+      </aside>
+      <section class="map-column" aria-label="Generated map">
+        <div class="map-panel panel">
+          <div class="map-heading"><div><p class="eyebrow" id="map-category">YOUR ISLAND AWAITS</p><h2 id="map-title">Base Catan</h2></div><div class="map-actions"><button id="share" class="icon-button" disabled><span aria-hidden="true">↗</span> Share</button><button id="print" class="icon-button" disabled><span aria-hidden="true">▤</span> Print</button><button id="download" class="icon-button" disabled><span aria-hidden="true">↓</span> SVG</button></div></div>
+          <div class="map-canvas" id="map-canvas"><div class="compass" aria-hidden="true">N<br>✧</div><div id="board" aria-busy="true"></div><div class="map-caption"><span id="board-seed">CHARTING YOUR SHORES…</span><span>FAIR SHORES / ATLAS NO. 01</span></div></div>
+          <div class="map-footer"><span class="validation" id="validation">Preparing your board</span><span id="board-inventory"></span></div>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+        <section class="balance-panel panel" aria-labelledby="production-title"><div class="panel-heading"><div><p class="eyebrow">THE NUMBERS BEHIND THE ISLAND</p><h2 id="production-title">Resource production</h2></div><span id="spread-badge" class="badge">—</span></div><div id="production" class="production"></div><p class="chart-note" id="chart-note">Each pip represents one of the 36 equally likely dice outcomes.</p><div class="starts-summary"><div class="panel-heading"><h3>Starting choices</h3><span id="starts-count" class="badge">Evaluating starts…</span></div><p id="starts-description"></p></div></section>
+        <details class="setup-details panel"><summary>Before you set sail <span>Setup notes & component check</span></summary><div id="setup-notes"></div></details>
+      </section>
+    </div>
+    <footer class="site-footer"><span>A little less setup. A lot more possibility.</span><span>Unofficial fan project · Not affiliated with CATAN GmbH.</span></footer>
+  </main>
+  <dialog id="about"><button class="dialog-close icon-button" aria-label="Close explanation">×</button><p class="eyebrow">WHY FAIR SHORES?</p><h2>A good board gives every resource a chance.</h2><p>Dice are unpredictable. Your island’s production doesn’t have to be. Fair Shores rearranges the real number tokens to bring resource production closer together, while preserving the tiles, tokens, and regions needed by your scenario.</p><h3>Two ways to balance</h3><p><b>Even total pips</b> gives each resource a similar production budget. <b>Even pips per tile</b> keeps tile strength similar, so resources with more tiles retain more total production. Gold is reported separately because it can produce any resource.</p><p>Balance is a best-effort search, not a guarantee of equal starting positions or a mathematically optimal board. The production chart shows the result you actually get.</p><h3>Balance starting locations</h3><p>A board can have strong corners without giving just two or three spots an outsized advantage. This option favors enough mutually legal starting spots within one pip of the best for one per player. It penalizes the gap below the strongest group, with no hard cap on corner strength. It respects settlement spacing and only counts areas where starting settlements are allowed.</p><p>Resource balancing runs first. Starting-choice optimization then rearranges tokens without worsening that resource-balance score. On New Shores and Through the Desert, even-total-pip balancing slightly favors the starting island over the whole board. This is a pip-based, best-effort measure: it does not evaluate resource mix, harbor value, or both settlements through the snake draft.</p><h3>Rules, with room for your preferences</h3><p>Inventories and layouts follow the official 2020/2021 English rulebooks and 2023 extensions. Turning off red-token separation is a house-rule variant. Random harbor positions and resource balancing are optional setup variants. Fixed desert barriers and the ban on red tokens on gold in Through the Desert always apply.</p><p>Recommended tiles keep the printed terrain and numbers, overriding balancing. Conflicting placement settings produce an explanation. For New Shores with 5–6 players, the rulebook leaves the mainland variable; we use the base extension’s beginner layout there.</p><h3>More ideas for future game nights</h3><p>Comparing complete two-settlement starts could account for resource mix and draft order. Separating identical numbers could reduce reliance on one roll. Locking favorite tiles while rerolling the rest could help groups fine-tune an island.</p><p><a href="https://www.catan.com/understand-catan/game-rules" target="_blank" rel="noreferrer">Official rulebooks ↗</a> · <a href="https://www.seafarers-generator.com/" target="_blank" rel="noreferrer">Original inspiration ↗</a></p></dialog>
+  <noscript>This map generator needs JavaScript to create and display boards.</noscript>
+</body></html>
