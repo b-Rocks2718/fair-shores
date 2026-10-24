@@ -23,6 +23,7 @@
           <label class="field-label" for="balance">Resource balance</label>
           <select id="balance"><option value="total">Even total pips</option><option value="perTile">Even pips per tile</option><option value="off">Off / random resource totals</option></select>
           <p class="field-help" id="balance-help">Aim for similar total production across all five resources.</p>
+          <div class="variance-field"><label class="field-label" for="variance">Resource variance <output id="variance-value" for="variance">As even as possible</output></label><input id="variance" type="range" min="0" max="100" step="5" value="0"><div class="range-scale" aria-hidden="true"><span>Even</span><span>Random</span><span>Lopsided</span></div></div>
           <label class="toggle-row start-toggle"><span>Balance starting locations</span><input id="balanceStarts" type="checkbox" checked role="switch"><span class="switch" aria-hidden="true"></span></label>
           <div class="section-label">PLACEMENT PREFERENCES</div>
           <label class="toggle-row"><span>No adjacent harbors</span><input id="noAdjacentHarbors" type="checkbox" checked role="switch"><span class="switch" aria-hidden="true"></span></label>

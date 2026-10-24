@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SCENARIOS,getScenario} from '../src/scenarios.js';
-import {DEFAULTS,generateBoard,validateBoard,pips,tally,balanceScore,resourceBalanceScore} from '../src/generator.js';
+import {DEFAULTS,generateBoard,validateBoard,pips,tally,balanceScore,resourceBalanceScore,islandSizes,harborSpacing} from '../src/generator.js';
+import {createHash} from 'node:crypto';
 import {adjacent,edge,harborsConflict,coastEdges,key} from '../src/geometry.js';
 
 // Independent component tables from the official rulebooks. Resource order:
@@ -29,7 +30,7 @@ function checkInventory(board){
  assert.deepEqual(validateBoard(board),[]);
 }
 test('requested defaults and player mappings',()=>{
- assert.deepEqual(DEFAULTS,{balance:'total',noAdjacentHarbors:true,noAdjacentRed:true,noAdjacentResources:false,recommendedHarbors:false,recommendedTiles:false,balanceStarts:true});
+ assert.deepEqual(DEFAULTS,{balance:'total',noAdjacentHarbors:true,noAdjacentRed:true,noAdjacentResources:false,recommendedHarbors:false,recommendedTiles:false,balanceStarts:true,variance:0});
  for(const family of ['base','shores','islands','desert'])for(const players of [3,4,5,6])assert.ok(getScenario(family,players));
 });
 test('probability pips match the 36 dice outcomes',()=>{
@@ -103,4 +104,38 @@ test('harbors attach to genuine coast edges and distinct coastal corners',()=>{
  const b=generateBoard('shores-4','coast'),coast=coastEdges(b.tiles,true);
  for(const h of b.harbors)assert.ok(coast.some(e=>e.id===`${key(h)}:${h.side}`));
  const edges=b.harbors.map(h=>edge(h,h.side));for(const [i,a] of edges.entries())for(const b of edges.slice(i+1))assert.equal(harborsConflict(a,b,true),false);
+});
+test('variance setting moves resource balance from even toward lopsided',()=>{
+ for(const id of ['base-4','shores-4','base-6']){
+  const s=SCENARIOS.find(s=>s.id===id),mean=variance=>{let sum=0;for(let i=0;i<12;i++){const b=generateBoard(id,`variance-${i}`,{variance});checkInventory(b);sum+=resourceBalanceScore(b.tiles,'total',s);}return sum/12;};
+  const levels=[0,25,50,100].map(mean);
+  for(let i=1;i<levels.length;i++)assert.ok(levels[i]>levels[i-1],`${id}: ${levels}`);
+  assert.ok(levels[0]<3,`${id}: variance 0 should stay even`);
+ }
+ assert.deepEqual(generateBoard('base-4','same',{variance:40}),generateBoard('base-4','same',{variance:40}));
+ for(const variance of [-1,101,2.5,'10'])assert.throws(()=>generateBoard('base-4','bad',{variance}),/Variance/);
+});
+test('version 4 Seafarers foreign areas form fewer, larger islands',()=>{
+ for(const s of SCENARIOS.filter(s=>['shores','desert'].includes(s.family))){
+  let before=0,after=0,lone=0;
+  for(let i=0;i<20;i++){
+   const old=islandSizes(generateBoard(s.id,`islands-${i}`,{},{version:3}).tiles),now=islandSizes(generateBoard(s.id,`islands-${i}`).tiles);
+   before+=old.length+old.filter(n=>n===1).length;after+=now.length+now.filter(n=>n===1).length;lone+=now.filter(n=>n===1).length;
+  }
+  assert.ok(after<before,`${s.id}: ${before} -> ${after}`);assert.ok(lone<=12,`${s.id}: ${lone} single-hex islands`);
+ }
+});
+test('version 4 harbors are spaced further apart on average',()=>{
+ let before=0,after=0;
+ for(const s of SCENARIOS)for(let i=0;i<10;i++){
+  before+=harborSpacing(generateBoard(s.id,`ports-${i}`,{},{version:3}).harbors);
+  const b=generateBoard(s.id,`ports-${i}`);checkInventory(b);after+=harborSpacing(b.harbors);
+ }
+ assert.ok(after>before*1.04,`${before} -> ${after}`);
+});
+test('version 3 shared maps keep their original tile and harbor layouts',()=>{
+ const expected={'base-4':'5f7679cc55ab84aeccd8837856016adb8f8bc31415c1403bad92203278ea2f97','shores-4':'fe568ce213c859ad89d765d658fa507e47b4615343dff60ba545367d65c69778','desert-6':'4a4294ed150dc5da51d00423abaab865aeb54de8b02b3c24e162f714966767cc'};
+ for(const [id,hash] of Object.entries(expected)){
+  const b=generateBoard(id,'version-three',{}, {version:3});assert.equal(createHash('sha256').update(JSON.stringify([b.tiles,b.harbors])).digest('hex'),hash);
+ }
 });

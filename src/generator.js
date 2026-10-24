@@ -2,7 +2,7 @@ import { RESOURCES, SCENARIOS } from './scenarios.js';
 import { adjacent, coastEdges, edge, harborsConflict, key, intersections } from './geometry.js';
 import { startingGraph, scoreStarts } from './starts.js';
 import { startingPieces, validatePieces } from './pieces.js';
-export const DEFAULTS = { balance:'total', noAdjacentHarbors:true, noAdjacentRed:true, noAdjacentResources:false, recommendedHarbors:false, recommendedTiles:false, balanceStarts:true };
+export const DEFAULTS = { balance:'total', noAdjacentHarbors:true, noAdjacentRed:true, noAdjacentResources:false, recommendedHarbors:false, recommendedTiles:false, balanceStarts:true, variance:0 };
 export const pips = n => n && n!==7 ? 6-Math.abs(7-n) : 0;
 export const isRed = n => n===6 || n===8;
 export function random(seed) {
@@ -38,13 +38,39 @@ export function resourceBalanceScore(tiles,mode,scenario,version=3) {
   // more weight; dividing keeps the annealing score on its existing scale.
   return (overall+1.15*balanceScore(main,'total')*(overallMean/mainMean)**2)/2.15;
 }
-function assignTerrain(template,options,rng) {
+export function islandSizes(tiles) {
+  let left=tiles.filter(t=>t.resource!=='sea');const sizes=[];
+  while(left.length){
+    let size=0;const queue=[left.pop()];
+    while(queue.length){const t=queue.pop();size++;const next=left.filter(o=>adjacent(t,o));left=left.filter(o=>!next.includes(o));queue.push(...next);}
+    sizes.push(size);
+  }
+  return sizes;
+}
+// Seafarers foreign areas: from version 4, keep the land/sea layout with the
+// fewest islands (lone hexes count extra) out of a few random candidates.
+// Sampling rather than minimizing keeps some variety in island shapes.
+function clusterForeign(tiles,cells,rng) {
+  const seaCount=cells.filter(t=>t.resource==='sea').length;
+  let best=null,bestCost=Infinity;
+  for(let i=0;i<8;i++){
+    const order=shuffle(cells,rng);order.forEach((t,j)=>t.resource=j<seaCount?'sea':'land');
+    const sizes=islandSizes(tiles),cost=sizes.length+1.5*sizes.filter(n=>n===1).length;
+    if(cost<bestCost){bestCost=cost;best=cells.map(t=>t.resource);}
+  }
+  cells.forEach((t,i)=>t.resource=best[i]);
+}
+function assignTerrain(template,options,scenario,rng,version) {
   const tiles=template.map(t=>({...t}));
   if(options.recommendedTiles)return tiles;
   for(const group of ['main','foreign']) {
-    const cells=tiles.filter(t=>t.group===group),bag=tally(cells.map(t=>t.resource));
+    let cells=tiles.filter(t=>t.group===group),resources=cells.map(t=>t.resource);
+    if(version>=4&&group==='foreign'&&['shores','desert'].includes(scenario.family)){
+      clusterForeign(tiles,cells,rng);cells=cells.filter(t=>t.resource!=='sea');resources=resources.filter(r=>r!=='sea');
+    }
+    const bag=tally(resources);
     if(!options.noAdjacentResources) {
-      const resources=shuffle(cells.map(t=>t.resource),rng);cells.forEach((t,i)=>t.resource=resources[i]);continue;
+      resources=shuffle(resources,rng);cells.forEach((t,i)=>t.resource=resources[i]);continue;
     }
     cells.forEach(t=>t.resource=null);
     const neighbors=new Map(cells.map(t=>[t,tiles.filter(o=>adjacent(t,o))]));
@@ -81,10 +107,24 @@ function assignNumbers(tiles,template,options,scenario,rng) {
   }
   return true;
 }
+// Variance setting: 0 is as even as possible. Otherwise aim for a score
+// relative to a typical random token shuffle of this terrain: 100 is 1.5x its
+// resource spread (standard deviation), so about 67 matches a random board.
+function varianceTarget(tiles,cells,options,scenario,rng,version) {
+  if(!options.variance)return 0;
+  const saved=cells.map(t=>t.number);let sum=0;
+  for(let i=0;i<40;i++){
+    for(const group of ['main','foreign']){const g=cells.filter(t=>t.group===group),n=shuffle(g.map(t=>t.number),rng);g.forEach((t,j)=>t.number=n[j]);}
+    sum+=resourceBalanceScore(tiles,options.balance,scenario,version);
+  }
+  cells.forEach((t,i)=>t.number=saved[i]);
+  return sum/40*(1.5*options.variance/100)**2;
+}
 function optimize(tiles,options,scenario,rng,version) {
-  if(options.balance==='off'||options.recommendedTiles)return;
+  if(options.balance==='off'||options.recommendedTiles)return 0;
   const cells=tiles.filter(t=>t.number),neighbors=new Map(cells.map(t=>[t,cells.filter(o=>adjacent(t,o))]));
-  const objective=()=>resourceBalanceScore(tiles,options.balance,scenario,version);
+  const target=varianceTarget(tiles,cells,options,scenario,rng,version);
+  const objective=()=>Math.abs(resourceBalanceScore(tiles,options.balance,scenario,version)-target);
   let score=objective(),best=score,bestNumbers=cells.map(t=>t.number);
   for(let i=0;i<9000;i++){
     const a=cells[Math.floor(rng()*cells.length)],b=cells[Math.floor(rng()*cells.length)];
@@ -99,12 +139,13 @@ function optimize(tiles,options,scenario,rng,version) {
     if(best<(options.balance==='perTile'?0.03:0.81))break;
   }
   cells.forEach((t,i)=>t.number=bestNumbers[i]);
+  return target;
 }
-function optimizeStarts(tiles,options,scenario,players,rng,version) {
+function optimizeStarts(tiles,options,scenario,players,rng,version,target) {
   if(!options.balanceStarts||options.recommendedTiles)return;
   const graph=startingGraph(tiles,scenario.family),cells=tiles.filter(t=>t.number);
   const neighbors=new Map(cells.map(t=>[t,cells.filter(o=>adjacent(t,o))]));
-  const objective=()=>resourceBalanceScore(tiles,options.balance,scenario,version);
+  const objective=()=>Math.abs(resourceBalanceScore(tiles,options.balance,scenario,version)-target);
   const resourceLimit=options.balance==='off'?Infinity:objective();
   let best=scoreStarts(graph,players).penalty,score=best,bestNumbers=cells.map(t=>t.number);
   if(best===0)return;
@@ -124,7 +165,12 @@ function optimizeStarts(tiles,options,scenario,players,rng,version) {
   }
   cells.forEach((t,i)=>t.number=bestNumbers[i]);
 }
-function placeHarbors(tiles,scenario,options,rng) {
+// Mean distance from each harbor to its nearest neighbor, in hex sizes.
+export function harborSpacing(harbors) {
+  const points=harbors.map(h=>{const e=edge(h,h.side);return {x:(e.a.x+e.b.x)/2,y:(e.a.y+e.b.y)/2};});
+  return points.reduce((sum,p,i)=>sum+Math.min(...points.filter((_,j)=>j!==i).map(o=>Math.hypot(p.x-o.x,p.y-o.y))),0)/points.length;
+}
+function placeHarbors(tiles,scenario,options,rng,version) {
   const coast=coastEdges(tiles,['shores','desert'].includes(scenario.family));
   let selected=[];
   if(options.recommendedHarbors) {
@@ -136,16 +182,23 @@ function placeHarbors(tiles,scenario,options,rng) {
       if(!extra)return null;selected.push(extra);
     }
   }else {
-    let budget=40000;
-    const search = (candidates,picked) => {
-      if(picked.length===scenario.harborTypes.length){selected=picked;return true;}
-      if(--budget<0 || candidates.length<scenario.harborTypes.length-picked.length)return false;
-      for(let i=0;i<candidates.length;i++){
-        const e=candidates[i], remaining=candidates.slice(i+1).filter(o=>!harborsConflict(e,o,options.noAdjacentHarbors));
-        if(search(remaining,[...picked,e]))return true;
-      }return false;
-    };
-    if(!search(shuffle(coast,rng),[]))return null;
+    // From version 4, keep the most spread-out of a few legal layouts.
+    let bestSpacing=-Infinity;
+    for(let attempt=0;attempt<(version>=4?3:1);attempt++){
+      let found=null,budget=40000;
+      const search = (candidates,picked) => {
+        if(picked.length===scenario.harborTypes.length){found=picked;return true;}
+        if(--budget<0 || candidates.length<scenario.harborTypes.length-picked.length)return false;
+        for(let i=0;i<candidates.length;i++){
+          const e=candidates[i], remaining=candidates.slice(i+1).filter(o=>!harborsConflict(e,o,options.noAdjacentHarbors));
+          if(search(remaining,[...picked,e]))return true;
+        }return false;
+      };
+      if(!search(shuffle(coast,rng),[]))continue;
+      const spacing=version>=4?harborSpacing(found):0;
+      if(spacing>bestSpacing){bestSpacing=spacing;selected=found;}
+    }
+    if(!selected.length)return null;
   }
   const types=shuffle(scenario.harborTypes,rng);
   return selected.map((e,i)=>({q:e.q,r:e.r,side:e.side,resource:types[i]}));
@@ -177,19 +230,20 @@ export function validateBoard(board) {
 }
 export function generateBoard(scenarioId,seed,settings={},context={}) {
   const s=SCENARIOS.find(s=>s.id===scenarioId);if(!s)throw Error('Choose a supported scenario.');
-  const version=context.version??3,players=context.players??s.players;
-  if(![1,2,3].includes(version))throw Error('Unsupported map link version.');
+  const version=context.version??4,players=context.players??s.players;
+  if(![1,2,3,4].includes(version))throw Error('Unsupported map link version.');
   if(![3,4,5,6].includes(players)||(s.family==='base'? (players>4?6:4):players>4?6:players)!==s.players)throw Error('Player count does not match this scenario.');
   const options={...DEFAULTS,...settings,...(version===1?{balanceStarts:false}:{})};
   if(!['total','perTile','off'].includes(options.balance))throw Error('Unknown balance mode.');
+  if(!Number.isInteger(options.variance)||options.variance<0||options.variance>100)throw Error('Variance must be a whole number from 0 to 100.');
   const rng=random(`${scenarioId}:${seed}:v1`);
   // Recommended layouts are exact; reject conflicting optional constraints.
   for(let attempt=0;attempt<50;attempt++){
-    const tiles=assignTerrain(s.tiles,options,rng);if(!tiles)continue;
+    const tiles=assignTerrain(s.tiles,options,s,rng,version);if(!tiles)continue;
     if(!assignNumbers(tiles,s.tiles,options,s,rng))continue;
-    const harbors=placeHarbors(tiles,s,options,rng);if(!harbors)continue;
-    optimize(tiles,options,s,rng,version);
-    optimizeStarts(tiles,options,s,players,rng,version);
+    const harbors=placeHarbors(tiles,s,options,rng,version);if(!harbors)continue;
+    const target=optimize(tiles,options,s,rng,version);
+    optimizeStarts(tiles,options,s,players,rng,version,target);
     const board={version,players,scenarioId,seed:String(seed),options,tiles,harbors,pieces:startingPieces(tiles,s)};
     const errors=validateBoard(board);
     if(!errors.length)return board;

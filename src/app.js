@@ -3,26 +3,30 @@ import {DEFAULTS,boardStats,tally,production} from './generator.js';
 import {renderBoard,LABELS,COLORS,escape} from './render.js';
 const $ = id=>document.getElementById(id);
 const booleanKeys=Object.keys(DEFAULTS).filter(k=>typeof DEFAULTS[k]==='boolean');
-let board=null,worker=null,busy=false,seedEdited=false,generatorVersion=3,savedPlayers=null;
+let board=null,worker=null,busy=false,seedEdited=false,generatorVersion=4,savedPlayers=null;
 const playerLabel=b=>b.version>=3&&b.players===6?'5–6':String(b.players);
 const freshSeed=()=>Array.from(crypto.getRandomValues(new Uint8Array(5)),n=>n.toString(16).padStart(2,'0')).join('');
-function readForm(){return {v:generatorVersion,family:$('family').value,players:savedPlayers??Number(document.querySelector('[name=players]:checked').value),seed:$('seed').value.trim()||freshSeed(),options:{balance:$('balance').value,...Object.fromEntries(booleanKeys.map(k=>[k,$(k).checked]))}};}
+function readForm(){return {v:generatorVersion,family:$('family').value,players:savedPlayers??Number(document.querySelector('[name=players]:checked').value),seed:$('seed').value.trim()||freshSeed(),options:{balance:$('balance').value,...Object.fromEntries(booleanKeys.map(k=>[k,$(k).checked])),variance:Number($('variance').value)}};}
 function setForm(state){
-  generatorVersion=[1,2].includes(state.v)?state.v:3;
+  generatorVersion=[1,2,3].includes(state.v)?state.v:4;
   savedPlayers=generatorVersion<3&&state.players===5?5:null;
   if(['base','shores','islands','desert'].includes(state.family))$('family').value=state.family;
   if([3,4,5,6].includes(state.players))document.querySelector(`[name=players][value="${state.players>4?6:state.players}"]`).checked=true;
   $('seed').value=typeof state.seed==='string'?state.seed.slice(0,64):freshSeed();
   $('balance').value=['total','perTile','off'].includes(state.options?.balance)?state.options.balance:DEFAULTS.balance;
+  $('variance').value=Number.isInteger(state.options?.variance)&&state.options.variance>=0&&state.options.variance<=100?state.options.variance:DEFAULTS.variance;
   for(const k of booleanKeys)$(k).checked=typeof state.options?.[k]==='boolean'?state.options[k]:DEFAULTS[k];
   if(generatorVersion===1)$('balanceStarts').checked=false;
   updateHelp();
 }
+const varianceLabel=v=>v===0?'As even as possible':v<40?'Slightly varied':v<60?'Moderately varied':v<=75?'Like a random board':'Lopsided';
 function save(state){try{localStorage.setItem('fair-shores-v1',JSON.stringify(state));}catch{/* Browsing without storage still works. */}}
 function updateHelp(){
   const state=readForm(),s=getScenario(state.family,state.players),notes=[];
   $('balance').disabled=state.options.recommendedTiles;
   $('balanceStarts').disabled=state.options.recommendedTiles;
+  $('variance').disabled=state.options.recommendedTiles||state.options.balance==='off';
+  $('variance-value').textContent=varianceLabel(state.options.variance);
   $('balance-help').textContent=state.options.recommendedTiles?'The rulebook’s exact numbers take priority over both balance options.':state.options.balance==='total'?(generatorVersion>=3&&['shores','desert'].includes(s.family)?'Balance resource totals, with a slight preference for the starting island over the whole board.':'Aim for similar total production across all five resources.'):state.options.balance==='perTile'?'Keep average tile strength similar; more tiles still means more production.':'Resource totals are not optimized. Starting-location balance can still be used separately.';
   if(!state.options.noAdjacentRed)notes.push('Allowing adjacent 6s and 8s is a house-rule variant.');
   if(state.options.recommendedTiles)notes.push('Recommended tiles preserve the printed setup. Conflicting placement options may need to be switched off.');
@@ -60,7 +64,7 @@ function render(){
   $('spread-badge').textContent=`${stats.spread}-pip resource spread`;
   const max=Math.max(...stats.rows.map(r=>r.total),1);
   $('production').innerHTML=stats.rows.map(r=>`<button class="resource-stat" data-highlight="${r.resource}" aria-pressed="false" aria-label="Highlight ${LABELS[r.resource]}: ${r.total} pips across ${r.count} tiles"><div class="resource-name"><i style="background:${COLORS[r.resource]}"></i>${LABELS[r.resource]}<b>${r.total}<small> pips</small></b></div><div class="bar-track"><span style="width:${r.total/max*100}%;background:${COLORS[r.resource]}"></span></div><div class="resource-detail">${r.count} tiles <span>${r.average.toFixed(2)} / tile</span></div></button>`).join('');
-  $('chart-note').textContent=`One pip = 1/36 production chance per roll. ${stats.goldPips?`Gold’s ${stats.goldPips} pips are separate. `:''}${board.options.recommendedTiles?'Rulebook numbers; both balance optimizations are off.':board.options.balance==='off'?'Resource-total optimization is off.':`Optimized for ${board.options.balance==='total'?'even resource totals':'even pips per tile'}; the result is best effort.`}`;
+  $('chart-note').textContent=`One pip = 1/36 production chance per roll. ${stats.goldPips?`Gold’s ${stats.goldPips} pips are separate. `:''}${board.options.recommendedTiles?'Rulebook numbers; both balance optimizations are off.':board.options.balance==='off'?'Resource-total optimization is off.':`${board.options.variance?`Resource variance set to ${board.options.variance} of 100 (${varianceLabel(board.options.variance).toLowerCase()}) for ${board.options.balance==='total'?'resource totals':'pips per tile'}`:`Optimized for ${board.options.balance==='total'?'even resource totals':'even pips per tile'}`}; the result is best effort.`}`;
   const starts=stats.starts;
   $('starts-count').textContent=`${starts.nearBest} strong choices · ${playerLabel(board)} players`;
   $('starts-count').classList.toggle('needs-attention',starts.nearBest<starts.players);
@@ -74,16 +78,17 @@ function render(){
 }
 $('settings-form').addEventListener('submit',e=>{
   e.preventDefault();
-  generatorVersion=3;savedPlayers=null;
+  generatorVersion=4;savedPlayers=null;
   updateHelp();
   const state=readForm();
   if(board&&!seedEdited&&board.seed===state.seed&&board.players===state.players&&board.version===state.v&&board.scenarioId===getScenario(state.family,state.players).id&&JSON.stringify(state.options)===JSON.stringify(board.options))$('seed').value=freshSeed();
   generate();
 });
-$('settings-form').addEventListener('change',()=>{generatorVersion=3;savedPlayers=null;updateHelp();save(readForm());if(board&&!busy)$('status').textContent='Preferences changed. Generate a map to apply them.';});
+$('settings-form').addEventListener('change',()=>{generatorVersion=4;savedPlayers=null;updateHelp();save(readForm());if(board&&!busy)$('status').textContent='Preferences changed. Generate a map to apply them.';});
 $('seed').addEventListener('input',()=>{seedEdited=true;if(board&&!busy)$('status').textContent='Seed changed. Generate a map to apply it.';});
-$('new-seed').onclick=()=>{generatorVersion=3;savedPlayers=null;$('seed').value=freshSeed();updateHelp();generate();};
-$('reset').onclick=()=>{setForm({...readForm(),v:3,options:DEFAULTS,seed:freshSeed()});generate();};
+$('variance').addEventListener('input',()=>{$('variance-value').textContent=varianceLabel(Number($('variance').value));});
+$('new-seed').onclick=()=>{generatorVersion=4;savedPlayers=null;$('seed').value=freshSeed();updateHelp();generate();};
+$('reset').onclick=()=>{setForm({...readForm(),v:4,options:DEFAULTS,seed:freshSeed()});generate();};
 $('production').onclick=e=>{
   const button=e.target.closest('[data-highlight]');if(!button)return;
   const resource=button.dataset.highlight,active=button.getAttribute('aria-pressed')!=='true';
@@ -107,10 +112,10 @@ $('about-button').onclick=()=>$('about').showModal();document.querySelector('.di
 function restore(){
   let state=null;
   try{
-    if(location.hash){state=JSON.parse(decodeURIComponent(location.hash.slice(1)));if(![1,2,3].includes(state.v))throw Error('Unsupported map link version.');}
+    if(location.hash){state=JSON.parse(decodeURIComponent(location.hash.slice(1)));if(![1,2,3,4].includes(state.v))throw Error('Unsupported map link version.');}
     else {
       state=JSON.parse(localStorage.getItem('fair-shores-v1')||'null');
-      if(state)state={...state,v:3,players:state.players>4?6:state.players};
+      if(state)state={...state,v:4,players:state.players>4?6:state.players};
     }
   }
   catch{state=null;}
