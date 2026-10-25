@@ -17,6 +17,7 @@ function setForm(state){
   $('variance').value=Number.isInteger(state.options?.variance)&&state.options.variance>=0&&state.options.variance<=100?state.options.variance:DEFAULTS.variance;
   for(const k of booleanKeys)$(k).checked=typeof state.options?.[k]==='boolean'?state.options[k]:DEFAULTS[k];
   if(generatorVersion===1)$('balanceStarts').checked=false;
+  if(generatorVersion<4)$('foreignHarbors').checked=false;
   updateHelp();
 }
 const varianceLabel=v=>v===0?'As even as possible':v<40?'Slightly varied':v<60?'Moderately varied':v<=75?'Like a random board':'Lopsided';
@@ -25,6 +26,7 @@ function updateHelp(){
   const state=readForm(),s=getScenario(state.family,state.players),notes=[];
   $('balance').disabled=state.options.recommendedTiles;
   $('balanceStarts').disabled=state.options.recommendedTiles;
+  $('foreign-harbors-row').hidden=!['shores','desert'].includes(s.family);
   $('variance').disabled=state.options.recommendedTiles||state.options.balance==='off';
   $('variance-value').textContent=varianceLabel(state.options.variance);
   $('balance-help').textContent=state.options.recommendedTiles?'The rulebook’s exact numbers take priority over both balance options.':state.options.balance==='total'?(generatorVersion>=3&&['shores','desert'].includes(s.family)?'Balance resource totals, with a slight preference for the starting island over the whole board.':'Aim for similar total production across all five resources.'):state.options.balance==='perTile'?'Keep average tile strength similar; more tiles still means more production.':'Resource totals are not optimized. Starting-location balance can still be used separately.';
@@ -33,13 +35,14 @@ function updateHelp(){
   if(s.noRedGold)notes.push('The desert barrier stays fixed. Gold never receives a 6 or 8.');
   if(s.recommendedMainVariable&&state.options.recommendedTiles)notes.push('The mainland is variable in this diagram; we use the base extension’s beginner setup.');
   if(s.harborNote&&state.options.recommendedHarbors)notes.push(s.harborNote);
+  if(['shores','desert'].includes(s.family)&&state.options.foreignHarbors&&!state.options.recommendedHarbors)notes.push('Harbors beyond the starting island are a variant; the rulebook places them all on the starting island.');
   $('settings-note').hidden=!notes.length;$('settings-note').textContent=notes.join(' ');
 }
 function setBusy(value){
   busy=value;$('generate').disabled=value;$('generate').innerHTML=value?'Charting your shores…':'<span aria-hidden="true">⤨</span> Generate map <span aria-hidden="true">→</span>';
   $('board').setAttribute('aria-busy',String(value));$('map-canvas').classList.toggle('loading',value);
 }
-function generate(){
+function generate(reveal=false){
   const state=readForm(),scenario=getScenario(state.family,state.players);$('seed').value=state.seed;save(state);
   seedEdited=false;
   if(worker)worker.terminate();setBusy(true);$('status').className='status';$('status').textContent='Finding a board that fits your preferences…';
@@ -48,6 +51,9 @@ function generate(){
     worker.terminate();worker=null;setBusy(false);
     if(data.error){$('status').className='status error';$('status').textContent=data.error+(board?' The previous map is still shown.':'');return;}
     board=data.board;render();
+    // The generate bar is pinned on small screens; bring the new map into view.
+    const box=$('map-canvas').getBoundingClientRect();
+    if(reveal&&(box.bottom<80||box.top>innerHeight*.6))$('map-canvas').scrollIntoView({behavior:'smooth',block:'center'});
     if(location.hash)history.replaceState(null,'',`#${encodeURIComponent(JSON.stringify(state))}`);
     const now=readForm();$('status').textContent=JSON.stringify(now)!==JSON.stringify(state)?'Preferences changed while generating. Generate again to apply them.':'Your map is ready. Generate again for a fresh island, or enter a seed to recreate a favorite.';
   };
@@ -73,7 +79,7 @@ function render(){
   const starting=s.family==='base'?'Place the robber on a desert.':s.family==='islands'?'Start on any one or two islands. The robber starts on the 12 (choose either 12 for Six Islands).':`Build your starting settlements on the main island${s.family==='desert'?', on the larger side of the fixed desert barrier':''}. Gold outlines mark foreign-area positions. ${s.family==='shores'&&s.players===3?'The robber starts on the tile carrying 12.':'Place the robber on a desert.'}`;
   const foreign=s.family==='islands'?'Earn 2 bonus points for your first settlement on each foreign island.':s.family==='base'?'First to 10 victory points on their turn wins.':'Earn 2 bonus points for your first settlement in each foreign area.';
   const mainRows=production(board.tiles.filter(t=>t.group==='main'));
-  $('setup-notes').innerHTML=`<p>${starting} ${foreign}</p><p>The pawn marks the robber’s starting tile.${s.family!=='base'?' The ship marks the pirate. A dashed circle labeled ON FRAME is part of the sea frame, not an extra hex tile. Use the linked diagram to assemble the physical frame.':''}</p><p>${s.players===6?(s.family==='base'?'Requires the base game and its 5–6 player extension.':'Requires all four boxes: base game, Seafarers, and both 5–6 player extensions.'):(s.family==='base'?'Requires the base game.':'Requires the base game and Seafarers.')}</p>${['shores','desert'].includes(s.family)?`<p><b>Main-island production:</b> ${mainRows.map(r=>`${LABELS[r.resource]} ${r.total}`).join(' · ')} pips. ${board.version>=3&&board.options.balance==='total'?'Even-total-pip balance gives starting-island evenness 15% more weight than whole-board evenness, after adjusting for their different sizes. ':''}Separate main and foreign token pools are preserved.</p>`:''}${s.harborNote?`<p>${s.harborNote}</p>`:''}<div class="inventory-list">${Object.entries(inventory).map(([r,n])=>`<span>${LABELS[r]} <b>${n}</b></span>`).join('')}<span>Harbors <b>${board.harbors.length}</b></span><span>Total pips <b>${stats.totalPips}</b></span></div><p class="source-note">Setup reference: <a href="${s.source}#page=${s.page}" target="_blank" rel="noreferrer">Official ${s.players===6?'extension':'rulebook'}, page ${s.page} ↗</a>. Uses the 2020/2021 game editions and 2023 extensions.</p>`;
+  $('setup-notes').innerHTML=`<p>${starting} ${foreign}</p><p>The pawn marks the robber’s starting tile.${s.family!=='base'?' The ship marks the pirate. A dashed circle labeled ON FRAME is part of the sea frame, not an extra hex tile. Use the linked diagram to assemble the physical frame.':''}</p><p>${s.players===6?(s.family==='base'?'Requires the base game and its 5–6 player extension.':'Requires all four boxes: base game, Seafarers, and both 5–6 player extensions.'):(s.family==='base'?'Requires the base game.':'Requires the base game and Seafarers.')}</p>${['shores','desert'].includes(s.family)?`<p><b>Main-island production:</b> ${mainRows.map(r=>`${LABELS[r.resource]} ${r.total}`).join(' · ')} pips. ${board.version>=3&&board.options.balance==='total'?'Even-total-pip balance gives starting-island evenness 15% more weight than whole-board evenness, after adjusting for their different sizes. ':''}Separate main and foreign token pools are preserved.${board.options.foreignHarbors?` ${board.harbors.filter(h=>board.tiles.some(t=>t.group==='main'&&t.q===h.q&&t.r===h.r)).length} of ${board.harbors.length} harbors are on the starting island; the rest are ${s.family==='desert'?'past the desert':'on outer islands'} (a variant: the rulebook puts every harbor on the starting island).`:''}</p>`:''}${s.harborNote?`<p>${s.harborNote}</p>`:''}<div class="inventory-list">${Object.entries(inventory).map(([r,n])=>`<span>${LABELS[r]} <b>${n}</b></span>`).join('')}<span>Harbors <b>${board.harbors.length}</b></span><span>Total pips <b>${stats.totalPips}</b></span></div><p class="source-note">Setup reference: <a href="${s.source}#page=${s.page}" target="_blank" rel="noreferrer">Official ${s.players===6?'extension':'rulebook'}, page ${s.page} ↗</a>. Uses the 2020/2021 game editions and 2023 extensions.</p>`;
   for(const id of ['share','print','download'])$(id).disabled=false;
 }
 $('settings-form').addEventListener('submit',e=>{
@@ -82,12 +88,12 @@ $('settings-form').addEventListener('submit',e=>{
   updateHelp();
   const state=readForm();
   if(board&&!seedEdited&&board.seed===state.seed&&board.players===state.players&&board.version===state.v&&board.scenarioId===getScenario(state.family,state.players).id&&JSON.stringify(state.options)===JSON.stringify(board.options))$('seed').value=freshSeed();
-  generate();
+  generate(true);
 });
 $('settings-form').addEventListener('change',()=>{generatorVersion=4;savedPlayers=null;updateHelp();save(readForm());if(board&&!busy)$('status').textContent='Preferences changed. Generate a map to apply them.';});
 $('seed').addEventListener('input',()=>{seedEdited=true;if(board&&!busy)$('status').textContent='Seed changed. Generate a map to apply it.';});
 $('variance').addEventListener('input',()=>{$('variance-value').textContent=varianceLabel(Number($('variance').value));});
-$('new-seed').onclick=()=>{generatorVersion=4;savedPlayers=null;$('seed').value=freshSeed();updateHelp();generate();};
+$('new-seed').onclick=()=>{generatorVersion=4;savedPlayers=null;$('seed').value=freshSeed();updateHelp();generate(true);};
 $('reset').onclick=()=>{setForm({...readForm(),v:4,options:DEFAULTS,seed:freshSeed()});generate();};
 $('production').onclick=e=>{
   const button=e.target.closest('[data-highlight]');if(!button)return;

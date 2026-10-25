@@ -53,8 +53,9 @@ Interior tiles include sea and desert. The board shows the **robber** as a pawn 
 - Adjacent means sharing a hex edge for terrain/tokens. With harbor separation on, harbors cannot share a coastal endpoint: at least one unused edge separates them. With it off, harbors may meet at an endpoint but never occupy the same edge. This is a custom harbor variant.
 - Resource separation applies to all productive terrain, including gold. Sea and desert are exempt; in particular, the desert barrier must remain contiguous.
 - Random harbor placement keeps the most spread-out of three legal layouts (mean distance to the nearest harbor), giving slightly more space between ports on average.
+- **Harbors beyond the starting island** (New Shores and Through the Desert; on by default) lets random harbors sit on outer islands, on the far side of the desert, or on the desert barrier’s coast. At least half of the harbors (rounded up) stay on the starting island. This is a variant: the rulebooks put every harbor on the starting island. Maps from earlier versions keep harbors on the starting island.
 - In New Shores and Through the Desert, the foreign area’s land/sea layout is the most clustered of eight random candidates (fewest islands, with single-hex islands counted extra). This favors fewer, larger islands while keeping variety.
-- Recommended harbors preserve the diagram’s positions but shuffle harbor types. New Shores and Through the Desert keep harbors on the main island.
+- Recommended harbors preserve the diagram’s positions but shuffle harbor types.
 - Recommended tiles preserve the printed terrain and number arrangement and bypass balancing. Other selected constraints remain enforced; a conflict is reported rather than ignored.
 - Turning red-token separation off is explicitly labeled a house-rule variant. Through the Desert’s prohibition on red tokens on gold remains enforced.
 

@@ -30,10 +30,9 @@
           <label class="toggle-row"><span>No adjacent red tokens</span><input id="noAdjacentRed" type="checkbox" checked role="switch"><span class="switch" aria-hidden="true"></span></label>
           <label class="toggle-row"><span>No adjacent resources</span><input id="noAdjacentResources" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span></label>
           <label class="toggle-row"><span>Recommended harbors</span><input id="recommendedHarbors" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span></label>
+          <label class="toggle-row" id="foreign-harbors-row"><span>Harbors beyond the starting island<small>Outer islands and past the desert; at least half stay on the starting island.</small></span><input id="foreignHarbors" type="checkbox" checked role="switch"><span class="switch" aria-hidden="true"></span></label>
           <label class="toggle-row"><span>Recommended tiles</span><input id="recommendedTiles" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span></label>
           <p id="settings-note" class="notice" hidden></p>
-          <div class="seed-field"><label class="field-label" for="seed">Map seed <span>KEEP A GOOD ONE</span></label><div class="seed-input"><input id="seed" maxlength="64" spellcheck="false" autocomplete="off" aria-label="Map seed"><button type="button" id="new-seed" title="Choose a new random seed" aria-label="Choose a new random seed">⤨</button></div></div>
-          <button class="primary" id="generate" type="submit"><span aria-hidden="true">⤨</span> Generate map <span aria-hidden="true">→</span></button>
           <button class="text-button reset" type="button" id="reset">Reset preferences</button>
         </form>
       </aside>
@@ -41,6 +40,7 @@
         <div class="map-panel panel">
           <div class="map-heading"><div><p class="eyebrow" id="map-category">YOUR ISLAND AWAITS</p><h2 id="map-title">Base Catan</h2></div><div class="map-actions"><button id="share" class="icon-button" disabled><span aria-hidden="true">↗</span> Share</button><button id="print" class="icon-button" disabled><span aria-hidden="true">▤</span> Print</button><button id="download" class="icon-button" disabled><span aria-hidden="true">↓</span> SVG</button></div></div>
           <div class="map-canvas" id="map-canvas"><div class="compass" aria-hidden="true">N<br>✧</div><div id="board" aria-busy="true"></div><div class="map-caption"><span id="board-seed">CHARTING YOUR SHORES…</span><span>FAIR SHORES / ATLAS NO. 01</span></div></div>
+          <div class="generate-bar"><div class="seed-field"><label class="field-label" for="seed">Map seed <span>KEEP A GOOD ONE</span></label><div class="seed-input"><input id="seed" form="settings-form" maxlength="64" spellcheck="false" autocomplete="off" aria-label="Map seed"><button type="button" id="new-seed" title="Choose a new random seed" aria-label="Choose a new random seed">⤨</button></div></div><button class="primary" id="generate" type="submit" form="settings-form"><span aria-hidden="true">⤨</span> Generate map <span aria-hidden="true">→</span></button></div>
           <div class="map-footer"><span class="validation" id="validation">Preparing your board</span><span id="board-inventory"></span></div>
         </div>
         <p id="status" class="status" role="status" aria-live="polite"></p>

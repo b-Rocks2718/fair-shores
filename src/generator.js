@@ -2,7 +2,7 @@ import { RESOURCES, SCENARIOS } from './scenarios.js';
 import { adjacent, coastEdges, edge, harborsConflict, key, intersections } from './geometry.js';
 import { startingGraph, scoreStarts } from './starts.js';
 import { startingPieces, validatePieces } from './pieces.js';
-export const DEFAULTS = { balance:'total', noAdjacentHarbors:true, noAdjacentRed:true, noAdjacentResources:false, recommendedHarbors:false, recommendedTiles:false, balanceStarts:true, variance:0 };
+export const DEFAULTS = { balance:'total', noAdjacentHarbors:true, noAdjacentRed:true, noAdjacentResources:false, recommendedHarbors:false, recommendedTiles:false, balanceStarts:true, foreignHarbors:true, variance:0 };
 export const pips = n => n && n!==7 ? 6-Math.abs(7-n) : 0;
 export const isRed = n => n===6 || n===8;
 export function random(seed) {
@@ -170,8 +170,15 @@ export function harborSpacing(harbors) {
   const points=harbors.map(h=>{const e=edge(h,h.side);return {x:(e.a.x+e.b.x)/2,y:(e.a.y+e.b.y)/2};});
   return points.reduce((sum,p,i)=>sum+Math.min(...points.filter((_,j)=>j!==i).map(o=>Math.hypot(p.x-o.x,p.y-o.y))),0)/points.length;
 }
+// New Shores and Through the Desert print every harbor on the starting island.
+// The foreign-harbor option opens the outer islands and the far side of the
+// desert, but keeps at least half the harbors where players start.
+const restrictedHarbors = scenario => ['shores','desert'].includes(scenario.family);
+const minMainHarbors = (scenario,options) => restrictedHarbors(scenario)&&options.foreignHarbors?Math.ceil(scenario.harborTypes.length/2):0;
 function placeHarbors(tiles,scenario,options,rng,version) {
-  const coast=coastEdges(tiles,['shores','desert'].includes(scenario.family));
+  const coast=coastEdges(tiles,restrictedHarbors(scenario)&&!options.foreignHarbors);
+  const mainKeys=new Set(tiles.filter(t=>t.group==='main').map(key)),onMain=e=>mainKeys.has(key(e));
+  const minMain=minMainHarbors(scenario,options);
   let selected=[];
   if(options.recommendedHarbors) {
     selected=scenario.harbors.map(h=>coast.find(e=>e.id===`${key(h)}:${h.side}`));
@@ -187,9 +194,12 @@ function placeHarbors(tiles,scenario,options,rng,version) {
     for(let attempt=0;attempt<(version>=4?3:1);attempt++){
       let found=null,budget=40000;
       const search = (candidates,picked) => {
-        if(picked.length===scenario.harborTypes.length){found=picked;return true;}
+        if(picked.length===scenario.harborTypes.length){if(picked.filter(onMain).length<minMain)return false;found=picked;return true;}
         if(--budget<0 || candidates.length<scenario.harborTypes.length-picked.length)return false;
+        if(minMain&&picked.filter(onMain).length+candidates.filter(onMain).length<minMain)return false;
+        const foreignFull=minMain&&picked.filter(e=>!onMain(e)).length>=scenario.harborTypes.length-minMain;
         for(let i=0;i<candidates.length;i++){
+          if(foreignFull&&!onMain(candidates[i]))continue;
           const e=candidates[i], remaining=candidates.slice(i+1).filter(o=>!harborsConflict(e,o,options.noAdjacentHarbors));
           if(search(remaining,[...picked,e]))return true;
         }return false;
@@ -219,7 +229,8 @@ export function validateBoard(board) {
   if(s.noRedGold&&tiles.some(t=>t.resource==='gold'&&isRed(t.number)))errors.push('Red token on gold.');
   if(options.noAdjacentResources && tiles.some((t,i)=>!['sea','desert'].includes(t.resource)&&tiles.slice(i+1).some(o=>o.resource===t.resource&&adjacent(t,o))))errors.push('Adjacent matching resources.');
   if(!equalBag(harbors.map(h=>h.resource),s.harborTypes))errors.push('Incorrect harbor inventory.');
-  const coast=coastEdges(tiles,['shores','desert'].includes(s.family));
+  const coast=coastEdges(tiles,restrictedHarbors(s)&&!options.foreignHarbors);
+  if(harbors.filter(h=>tiles.some(t=>t.group==='main'&&key(t)===key(h))).length<minMainHarbors(s,options))errors.push('Too few harbors on the starting island.');
   if(harbors.some(h=>!coast.some(e=>e.id===`${key(h)}:${h.side}`)))errors.push('Harbor is not on an eligible coast.');
   const edges=harbors.map(h=>edge(h,h.side));
   if(edges.some((a,i)=>edges.slice(i+1).some(b=>harborsConflict(a,b,options.noAdjacentHarbors))))errors.push('Harbors too close together.');
@@ -233,7 +244,7 @@ export function generateBoard(scenarioId,seed,settings={},context={}) {
   const version=context.version??4,players=context.players??s.players;
   if(![1,2,3,4].includes(version))throw Error('Unsupported map link version.');
   if(![3,4,5,6].includes(players)||(s.family==='base'? (players>4?6:4):players>4?6:players)!==s.players)throw Error('Player count does not match this scenario.');
-  const options={...DEFAULTS,...settings,...(version===1?{balanceStarts:false}:{})};
+  const options={...DEFAULTS,...settings,...(version===1?{balanceStarts:false}:{}),...(version<4?{foreignHarbors:false}:{})};
   if(!['total','perTile','off'].includes(options.balance))throw Error('Unknown balance mode.');
   if(!Number.isInteger(options.variance)||options.variance<0||options.variance>100)throw Error('Variance must be a whole number from 0 to 100.');
   const rng=random(`${scenarioId}:${seed}:v1`);

@@ -30,7 +30,7 @@ function checkInventory(board){
  assert.deepEqual(validateBoard(board),[]);
 }
 test('requested defaults and player mappings',()=>{
- assert.deepEqual(DEFAULTS,{balance:'total',noAdjacentHarbors:true,noAdjacentRed:true,noAdjacentResources:false,recommendedHarbors:false,recommendedTiles:false,balanceStarts:true,variance:0});
+ assert.deepEqual(DEFAULTS,{balance:'total',noAdjacentHarbors:true,noAdjacentRed:true,noAdjacentResources:false,recommendedHarbors:false,recommendedTiles:false,balanceStarts:true,foreignHarbors:true,variance:0});
  for(const family of ['base','shores','islands','desert'])for(const players of [3,4,5,6])assert.ok(getScenario(family,players));
 });
 test('probability pips match the 36 dice outcomes',()=>{
@@ -101,7 +101,7 @@ test('recommended layout never silently ignores resource separation',()=>{
  assert.ok(s);assert.throws(()=>generateBoard(s.id,'conflict',{recommendedTiles:true,noAdjacentResources:true}),/conflicts/);
 });
 test('harbors attach to genuine coast edges and distinct coastal corners',()=>{
- const b=generateBoard('shores-4','coast'),coast=coastEdges(b.tiles,true);
+ const b=generateBoard('shores-4','coast',{foreignHarbors:false}),coast=coastEdges(b.tiles,true);
  for(const h of b.harbors)assert.ok(coast.some(e=>e.id===`${key(h)}:${h.side}`));
  const edges=b.harbors.map(h=>edge(h,h.side));for(const [i,a] of edges.entries())for(const b of edges.slice(i+1))assert.equal(harborsConflict(a,b,true),false);
 });
@@ -138,4 +138,21 @@ test('version 3 shared maps keep their original tile and harbor layouts',()=>{
  for(const [id,hash] of Object.entries(expected)){
   const b=generateBoard(id,'version-three',{}, {version:3});assert.equal(createHash('sha256').update(JSON.stringify([b.tiles,b.harbors])).digest('hex'),hash);
  }
+});
+test('Seafarers harbors can reach outer islands and past the desert, keeping half at home',()=>{
+ for(const s of SCENARIOS.filter(s=>['shores','desert'].includes(s.family))){
+  let outer=0;const home=Math.ceil(s.harborTypes.length/2);
+  for(let i=0;i<10;i++){
+   const b=generateBoard(s.id,`outer-harbors-${i}`);checkInventory(b);
+   const main=b.harbors.filter(h=>b.tiles.some(t=>t.group==='main'&&key(t)===key(h))).length;
+   assert.ok(main>=home,`${s.id}: ${main} harbors on the starting island`);outer+=b.harbors.length-main;
+   const closed=generateBoard(s.id,`outer-harbors-${i}`,{foreignHarbors:false});checkInventory(closed);
+   assert.ok(closed.harbors.every(h=>closed.tiles.some(t=>t.group==='main'&&key(t)===key(h))));
+  }
+  assert.ok(outer>0,`${s.id}: no outer harbors`);
+ }
+ const b=generateBoard('shores-4','outer-harbors-0'),moved=structuredClone(b),coast=coastEdges(b.tiles).filter(e=>b.tiles.some(t=>t.group==='foreign'&&key(t)===key(e)));
+ moved.harbors=moved.harbors.map((h,i)=>i<b.harbors.length-1?{...coast[i],resource:h.resource}:h);
+ assert.ok(validateBoard(moved).length,'validator must enforce the starting-island minimum');
+ assert.equal(generateBoard('shores-4','old',{}, {version:3}).options.foreignHarbors,false);
 });
