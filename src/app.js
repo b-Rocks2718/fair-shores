@@ -3,12 +3,12 @@ import {DEFAULTS,boardStats,tally,production} from './generator.js';
 import {renderBoard,LABELS,COLORS,escape} from './render.js';
 const $ = id=>document.getElementById(id);
 const booleanKeys=Object.keys(DEFAULTS).filter(k=>typeof DEFAULTS[k]==='boolean');
-let board=null,worker=null,busy=false,seedEdited=false,generatorVersion=4,savedPlayers=null;
+let board=null,worker=null,busy=false,seedEdited=false,generatorVersion=5,savedPlayers=null;
 const playerLabel=b=>b.version>=3&&b.players===6?'5–6':String(b.players);
 const freshSeed=()=>Array.from(crypto.getRandomValues(new Uint8Array(5)),n=>n.toString(16).padStart(2,'0')).join('');
 function readForm(){return {v:generatorVersion,family:$('family').value,players:savedPlayers??Number(document.querySelector('[name=players]:checked').value),seed:$('seed').value.trim()||freshSeed(),options:{balance:$('balance').value,...Object.fromEntries(booleanKeys.map(k=>[k,$(k).checked])),variance:Number($('variance').value)}};}
 function setForm(state){
-  generatorVersion=[1,2,3].includes(state.v)?state.v:4;
+  generatorVersion=[1,2,3,4].includes(state.v)?state.v:5;
   savedPlayers=generatorVersion<3&&state.players===5?5:null;
   if(['base','shores','islands','desert'].includes(state.family))$('family').value=state.family;
   if([3,4,5,6].includes(state.players))document.querySelector(`[name=players][value="${state.players>4?6:state.players}"]`).checked=true;
@@ -84,17 +84,17 @@ function render(){
 }
 $('settings-form').addEventListener('submit',e=>{
   e.preventDefault();
-  generatorVersion=4;savedPlayers=null;
+  generatorVersion=5;savedPlayers=null;
   updateHelp();
   const state=readForm();
   if(board&&!seedEdited&&board.seed===state.seed&&board.players===state.players&&board.version===state.v&&board.scenarioId===getScenario(state.family,state.players).id&&JSON.stringify(state.options)===JSON.stringify(board.options))$('seed').value=freshSeed();
   generate(true);
 });
-$('settings-form').addEventListener('change',()=>{generatorVersion=4;savedPlayers=null;updateHelp();save(readForm());if(board&&!busy)$('status').textContent='Preferences changed. Generate a map to apply them.';});
+$('settings-form').addEventListener('change',()=>{generatorVersion=5;savedPlayers=null;updateHelp();save(readForm());if(board&&!busy)$('status').textContent='Preferences changed. Generate a map to apply them.';});
 $('seed').addEventListener('input',()=>{seedEdited=true;if(board&&!busy)$('status').textContent='Seed changed. Generate a map to apply it.';});
 $('variance').addEventListener('input',()=>{$('variance-value').textContent=varianceLabel(Number($('variance').value));});
-$('new-seed').onclick=()=>{generatorVersion=4;savedPlayers=null;$('seed').value=freshSeed();updateHelp();generate(true);};
-$('reset').onclick=()=>{setForm({...readForm(),v:4,options:DEFAULTS,seed:freshSeed()});generate();};
+$('new-seed').onclick=()=>{generatorVersion=5;savedPlayers=null;$('seed').value=freshSeed();updateHelp();generate(true);};
+$('reset').onclick=()=>{setForm({...readForm(),v:5,options:DEFAULTS,seed:freshSeed()});generate();};
 $('production').onclick=e=>{
   const button=e.target.closest('[data-highlight]');if(!button)return;
   const resource=button.dataset.highlight,active=button.getAttribute('aria-pressed')!=='true';
@@ -118,10 +118,10 @@ $('about-button').onclick=()=>$('about').showModal();document.querySelector('.di
 function restore(){
   let state=null;
   try{
-    if(location.hash){state=JSON.parse(decodeURIComponent(location.hash.slice(1)));if(![1,2,3,4].includes(state.v))throw Error('Unsupported map link version.');}
+    if(location.hash){state=JSON.parse(decodeURIComponent(location.hash.slice(1)));if(![1,2,3,4,5].includes(state.v))throw Error('Unsupported map link version.');}
     else {
       state=JSON.parse(localStorage.getItem('fair-shores-v1')||'null');
-      if(state)state={...state,v:4,players:state.players>4?6:state.players};
+      if(state)state={...state,v:5,players:state.players>4?6:state.players};
     }
   }
   catch{state=null;}

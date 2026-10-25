@@ -50,15 +50,22 @@ export function islandSizes(tiles) {
 // Seafarers foreign areas: from version 4, keep the land/sea layout with the
 // fewest islands (lone hexes count extra) out of a few random candidates.
 // Sampling rather than minimizing keeps some variety in island shapes.
-function clusterForeign(tiles,cells,rng) {
+// From version 5, single-hex islands are not allowed at all: only layouts
+// without one are candidates.
+function clusterForeign(tiles,cells,rng,version) {
   const seaCount=cells.filter(t=>t.resource==='sea').length;
-  let best=null,bestCost=Infinity;
-  for(let i=0;i<8;i++){
+  let best=null,bestCost=Infinity,candidates=0;
+  for(let i=0;version>=5?candidates<8&&i<400:i<8;i++){
     const order=shuffle(cells,rng);order.forEach((t,j)=>t.resource=j<seaCount?'sea':'land');
-    const sizes=islandSizes(tiles),cost=sizes.length+1.5*sizes.filter(n=>n===1).length;
+    const sizes=islandSizes(tiles),lone=sizes.filter(n=>n===1).length;
+    if(version>=5&&lone)continue;
+    candidates++;
+    const cost=sizes.length+1.5*lone;
     if(cost<bestCost){bestCost=cost;best=cells.map(t=>t.resource);}
   }
+  if(!best)return false;
   cells.forEach((t,i)=>t.resource=best[i]);
+  return true;
 }
 function assignTerrain(template,options,scenario,rng,version) {
   const tiles=template.map(t=>({...t}));
@@ -66,7 +73,8 @@ function assignTerrain(template,options,scenario,rng,version) {
   for(const group of ['main','foreign']) {
     let cells=tiles.filter(t=>t.group===group),resources=cells.map(t=>t.resource);
     if(version>=4&&group==='foreign'&&['shores','desert'].includes(scenario.family)){
-      clusterForeign(tiles,cells,rng);cells=cells.filter(t=>t.resource!=='sea');resources=resources.filter(r=>r!=='sea');
+      if(!clusterForeign(tiles,cells,rng,version))return null;
+      cells=cells.filter(t=>t.resource!=='sea');resources=resources.filter(r=>r!=='sea');
     }
     const bag=tally(resources);
     if(!options.noAdjacentResources) {
@@ -234,6 +242,7 @@ export function validateBoard(board) {
   if(harbors.some(h=>!coast.some(e=>e.id===`${key(h)}:${h.side}`)))errors.push('Harbor is not on an eligible coast.');
   const edges=harbors.map(h=>edge(h,h.side));
   if(edges.some((a,i)=>edges.slice(i+1).some(b=>harborsConflict(a,b,options.noAdjacentHarbors))))errors.push('Harbors too close together.');
+  if((board.version??1)>=5&&!options.recommendedTiles&&['shores','desert'].includes(s.family)&&islandSizes(tiles).includes(1))errors.push('Single-hex island.');
   if(options.recommendedTiles && tiles.some(t=>{const expected=s.tiles.find(o=>key(o)===key(t));return !expected||expected.resource!==t.resource||expected.number!==t.number;}))errors.push('Recommended tiles changed.');
   if(options.recommendedHarbors&&s.harbors.some(h=>!harbors.some(a=>key(h)===key(a)&&h.side===a.side)))errors.push('Recommended harbors changed.');
   errors.push(...validatePieces(board,s));
@@ -241,8 +250,8 @@ export function validateBoard(board) {
 }
 export function generateBoard(scenarioId,seed,settings={},context={}) {
   const s=SCENARIOS.find(s=>s.id===scenarioId);if(!s)throw Error('Choose a supported scenario.');
-  const version=context.version??4,players=context.players??s.players;
-  if(![1,2,3,4].includes(version))throw Error('Unsupported map link version.');
+  const version=context.version??5,players=context.players??s.players;
+  if(![1,2,3,4,5].includes(version))throw Error('Unsupported map link version.');
   if(![3,4,5,6].includes(players)||(s.family==='base'? (players>4?6:4):players>4?6:players)!==s.players)throw Error('Player count does not match this scenario.');
   const options={...DEFAULTS,...settings,...(version===1?{balanceStarts:false}:{}),...(version<4?{foreignHarbors:false}:{})};
   if(!['total','perTile','off'].includes(options.balance))throw Error('Unknown balance mode.');

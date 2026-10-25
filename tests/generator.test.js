@@ -156,3 +156,23 @@ test('Seafarers harbors can reach outer islands and past the desert, keeping hal
  assert.ok(validateBoard(moved).length,'validator must enforce the starting-island minimum');
  assert.equal(generateBoard('shores-4','old',{}, {version:3}).options.foreignHarbors,false);
 });
+test('version 5 Seafarers maps never have single-hex islands',()=>{
+ for(const s of SCENARIOS.filter(s=>['shores','desert'].includes(s.family)))for(let i=0;i<25;i++){
+  const b=generateBoard(s.id,`no-lone-${i}`,{noAdjacentResources:i%2===0,recommendedHarbors:i%5===0});checkInventory(b);
+  assert.ok(!islandSizes(b.tiles).includes(1),`${s.id} seed ${i}: ${islandSizes(b.tiles)}`);
+ }
+ // The validator rejects a lone hex; printed layouts that have one stay exact.
+ const b=generateBoard('shores-4','lone'),moved=structuredClone(b),sea=moved.tiles.filter(t=>t.group==='foreign'&&t.resource==='sea');
+ const lone=sea.find(t=>!moved.tiles.some(o=>o!==t&&o.resource!=='sea'&&adjacent(t,o)));
+ assert.ok(lone,'fixture needs an enclosed foreign sea hex');
+ const swap=moved.tiles.find(t=>t.group==='foreign'&&t.resource!=='sea');
+ [lone.resource,swap.resource]=[swap.resource,'sea'];[lone.number,swap.number]=[swap.number,null];
+ assert.ok(validateBoard(moved).includes('Single-hex island.'));
+ assert.deepEqual(validateBoard(generateBoard('shores-6','printed',{recommendedTiles:true,recommendedHarbors:true})),[]);
+});
+test('version 4 shared maps keep their original tile and harbor layouts',()=>{
+ const expected={'base-4':'a9622af03bb6b2d8633ea3179da5f7ccdd2a1696609825effa221e413c613289','shores-6':'0ab48dd7408dc4133d4ed01e5a4d0bd0d25f7bb3a0a2781d0c2c64afcadabe61','desert-6':'24fb9a0bf373fba1aa5dd4527f8bc15e8aa50f7d738dc6fbd196f911611e535e'};
+ for(const [id,hash] of Object.entries(expected)){
+  const b=generateBoard(id,'version-four',{}, {version:4});assert.equal(createHash('sha256').update(JSON.stringify([b.tiles,b.harbors])).digest('hex'),hash);
+ }
+});
